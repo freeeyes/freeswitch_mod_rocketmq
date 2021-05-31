@@ -1,0 +1,16 @@
+<configuration name="rocket_mq.conf" description="connect rocket mq push && pull">
+	<profiles>
+		<profile>
+			<param name="producer_name" value="freeswitch_rocket_mq"/>
+			<param name="produce_ServerAddress" value="127.0.0.1:9876"/>
+			<param name="produce_topic" value="esl-topic"/>
+			
+			<param name="consumer_name" value="freeswitch_rocket_mq"/>
+			<param name="consumer_ServerAddress" value="127.0.0.1:9876"/>
+			<param name="consumer_topic" value="esl-topic"/>
+			
+			<param name="accessKey" value="rocketmq-user"/>
+			<param name="secretKey" value="rocketmq-pass"/>
+		</profile>
+	</profiles>
+</configuration>
