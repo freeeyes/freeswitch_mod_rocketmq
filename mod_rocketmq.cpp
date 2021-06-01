@@ -189,13 +189,38 @@ void close_rocketmq_client()
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[close_rocketmq_client]close rocketmq ok!\n");
 }
 
+//重连rocketmq服务器
+SWITCH_DECLARE(bool) reconnect_rocketmq_servre()
+{
+	close_rocketmq_client();
+
+	connect_rocketmq_server_producer(g_rocket_mq_config.producer_name, g_rocket_mq_config.produce_ServerAddress);
+	connect_rocketmq_server_consumer(g_rocket_mq_config.consumer_name, g_rocket_mq_config.consumer_ServerAddress);
+
+	if(false == g_rocket_mq_can_use)
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
+}
+
 //发送rocket mq数据
 void start_send_message(const char* topic, const char* send_body)
 {
 	if(false == g_rocket_mq_can_use)
 	{
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[start_send_message]g_rocket_mq_can_use is disconnect!\n");
-		return;
+
+		//如果连接不存在，尝试重连
+		bool reconnect_return = reconnect_rocketmq_servre();
+		if(false == reconnect_return)
+		{
+			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[start_send_message]reconnect_rocketmq_servre os fail!\n");
+			return;
+		}
 	}
 
 	CMessage *msg = CreateMessage(topic);
@@ -217,7 +242,7 @@ void start_send_message(const char* topic, const char* send_body)
 }
 
 //发送rocketmq消息(produce)
-SWITCH_STANDARD_API(conference_push_rocketmq_function) 
+SWITCH_STANDARD_API(push_rocketmq_event) 
 {
 	switch_memory_pool_t *pool;
 	char *mycmd = NULL;
@@ -225,7 +250,7 @@ SWITCH_STANDARD_API(conference_push_rocketmq_function)
 	int argc = 0;
 
     if (zstr(cmd)) {
-        stream->write_function(stream, "[conference_push_rocketmq_function]parameter missing.\n");
+        stream->write_function(stream, "[push_rocketmq_event]parameter missing.\n");
         return SWITCH_STATUS_SUCCESS;
     }
 
@@ -234,15 +259,16 @@ SWITCH_STANDARD_API(conference_push_rocketmq_function)
 
 	argc =get_cmd_string_space_count(mycmd);
     if (argc != 2) {
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[conference_push_rocketmq_function]parameter number is invalid, mycmd=%s, count=%d.\n", mycmd, argc);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[push_rocketmq_event]parameter number is invalid, mycmd=%s, count=%d.\n", mycmd, argc);
         return SWITCH_STATUS_SUCCESS;
     }
 
 	argc = switch_split(mycmd, ' ', argv);
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[conference_push_rocketmq_function]topic=%s.\n", argv[0]);
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[conference_push_rocketmq_function]message=%s.\n", argv[1]);
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[push_rocketmq_event]topic=%s.\n", argv[0]);
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[push_rocketmq_event]message=%s.\n", argv[1]);
 	start_send_message(argv[0], argv[1]);
 
+	stream->write_function(stream, "[push_rocketmq_event]put message ok.\n");
     return SWITCH_STATUS_SUCCESS;
 }
 
@@ -318,6 +344,20 @@ static switch_status_t do_config(CRocketMQ_config& rocket_mq_config)
 	return SWITCH_STATUS_SUCCESS;
 }
 
+//发送rocketmq消息(produce)
+SWITCH_STANDARD_API(reconnect_rocketmq_server)
+{
+	//重新读取配置文件
+	do_config(g_rocket_mq_config);
+
+	//重新连接
+	reconnect_rocketmq_servre();
+
+	stream->write_function(stream, "[reconnect_rocketmq_server]reconnect ok.\n");
+	return SWITCH_STATUS_SUCCESS;
+}
+
+
 SWITCH_MODULE_LOAD_FUNCTION(mod_rocketmq_load)
 {
 	switch_api_interface_t* commands_api_interface;
@@ -325,7 +365,8 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_rocketmq_load)
 	/* connect my internal structure to the blank pointer passed to me */
 	*module_interface = switch_loadable_module_create_module_interface(pool, modname);
 
-	SWITCH_ADD_API(commands_api_interface, "conference_push_rocketmq_function", "push rocketmq message", conference_push_rocketmq_function, "<topic> <message>");
+	SWITCH_ADD_API(commands_api_interface, "push_rocketmq_event", "push rocketmq message", push_rocketmq_event, "<topic> <message>");
+	SWITCH_ADD_API(commands_api_interface, "reconnect_rocketmq_server", "reconnect rocketmq server", reconnect_rocketmq_server, "");
 
   	/* 读取配置文件 */
 	switch_status_t do_config_return = do_config(g_rocket_mq_config);
