@@ -11,6 +11,7 @@
 			
 			<param name="accessKey" value="rocketmq-user"/>
 			<param name="secretKey" value="rocketmq-pass"/>
+			<param name="lua" value="/usr/local/freeswitch-1.10.2/share/freeswitch/scripts/rocket_mq_events.lua"/>
 		</profile>
 	</profiles>
 </configuration>

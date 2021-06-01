@@ -45,6 +45,7 @@ public:
 
 	std::string accessKey = "";
 	std::string secretKey = "";
+	std::string lua_script = "";
 
 	void print_info()
 	{
@@ -55,7 +56,8 @@ public:
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[CRocketMQ_config]consumer_ServerAddress=%s!\n", consumer_ServerAddress.c_str());
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[CRocketMQ_config]consumer_topic=%s!\n", consumer_topic.c_str());		
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[CRocketMQ_config]accessKey=%s!\n", accessKey.c_str());
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[CRocketMQ_config]secretKey=%s!\n", secretKey.c_str());				
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[CRocketMQ_config]secretKey=%s!\n", secretKey.c_str());	
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[CRocketMQ_config]lua_script=%s!\n", lua_script.c_str());				
 	}
 };
 
@@ -97,10 +99,22 @@ void SendExceptionCallback(CMQException e)
 //处理消费的消息
 int do_consume_message(struct CPushConsumer *consumer, CMessageExt *msgExt)
 {
+	switch_stream_handle_t stream = { 0 };
+
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[do_consume_message]MsgTopic=%s!\n", GetMessageTopic(msgExt));
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[do_consume_message]MessageTags=%s!\n", GetMessageTags(msgExt));
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[do_consume_message]Keys=%s!\n", GetMessageKeys(msgExt));
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[do_consume_message]MessageBody=%s!\n", GetMessageBody(msgExt));
+
+	//调用lua脚本
+	if(g_rocket_mq_config.lua_script.length() > 0)
+	{
+		std::string freeswitch_command = g_rocket_mq_config.lua_script + " " + GetMessageBody(msgExt);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[do_consume_message]freeswitch_command=%s!\n", freeswitch_command.c_str());
+		SWITCH_STANDARD_STREAM(stream);
+		switch_api_execute("luarun", freeswitch_command.c_str(), nullptr, &stream);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[do_consume_message]freeswitch_command=%s OK!\n", freeswitch_command.c_str());
+	}
  
     return E_CONSUME_SUCCESS;
 }
@@ -333,7 +347,11 @@ static switch_status_t do_config(CRocketMQ_config& rocket_mq_config)
 					else if (!strcasecmp(var, "secretKey")) 
 					{
 						rocket_mq_config.secretKey =  val;
-					}							
+					}				
+					else if (!strcasecmp(var, "lua")) 
+					{
+						rocket_mq_config.lua_script =  val;
+					}									
 				}			
 			}						
 		}
