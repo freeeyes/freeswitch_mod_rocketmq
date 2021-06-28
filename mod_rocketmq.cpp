@@ -248,6 +248,12 @@ void start_send_message(const char* topic, const char* send_body)
 	SendMessageSync(g_producer, msg, &result);
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[start_send_message]result=%d!\n", result.sendStatus);
 
+	if(result.sendStatus != 0)
+	{
+		//链接已经断开
+		g_rocket_mq_can_use = false;
+	}
+
 	//异步发送消息
 	//int ret_code = SendMessageAsync(g_producer, msg, SendSuccessCallback, SendExceptionCallback);
 	//switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "[start_send_message]ret_code=%d!\n", ret_code);
